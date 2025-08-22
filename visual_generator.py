@@ -1,7 +1,7 @@
 # visual_generator.py
 """
-시각적 요소 생성 모듈
-ERD, UML, 테이블, 플로우차트, UI 목업 등을 생성하는 클래스들
+최적화된 시각적 요소 생성 모듈
+ERD, UML, 테이블, 플로우차트, UI 목업 등을 고해상도로 생성
 """
 
 import matplotlib.pyplot as plt
@@ -19,22 +19,45 @@ from typing import List, Dict, Any
 plt.rcParams['font.family'] = ['Malgun Gothic', 'AppleGothic', 'Noto Sans CJK KR', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
-# visual_generator.py의 이미지 생성 함수들을 다음과 같이 수정하세요
-
 class VisualQuestionGenerator:
-    """시각적 요소를 포함한 문제 생성기 - 고해상도 버전"""
+    """시각적 요소를 포함한 문제 생성기 - 고해상도 최적화 버전"""
+    
+    def __init__(self):
+        self.dpi = 300  # 고해상도 설정
+        self.figsize_multiplier = 1.3  # 기본 크기의 1.3배
+    
+    def _setup_figure(self, width: int = 12, height: int = 8):
+        """고해상도 Figure 설정"""
+        fig, ax = plt.subplots(
+            1, 1, 
+            figsize=(width * self.figsize_multiplier, height * self.figsize_multiplier)
+        )
+        fig.patch.set_facecolor('white')
+        ax.set_facecolor('white')
+        return fig, ax
+    
+    def _save_figure(self, fig) -> str:
+        """Figure를 base64 문자열로 저장"""
+        buffer = BytesIO()
+        plt.savefig(
+            buffer, 
+            format='png', 
+            bbox_inches='tight', 
+            dpi=self.dpi,
+            facecolor='white', 
+            edgecolor='none'
+        )
+        buffer.seek(0)
+        image_base64 = base64.b64encode(buffer.getvalue()).decode()
+        plt.close(fig)
+        return image_base64
     
     def generate_erd(self, entities: List[Dict], relationships: List[Dict]) -> str:
         """ERD 다이어그램 생성 - 고해상도"""
-        # 더 큰 figsize와 높은 DPI 설정
-        fig, ax = plt.subplots(1, 1, figsize=(16, 12))  # 기존 (12, 8)에서 확대
+        fig, ax = self._setup_figure(16, 12)
         ax.set_xlim(0, 10)
         ax.set_ylim(0, 8)
         ax.axis('off')
-        
-        # 배경을 흰색으로 설정
-        fig.patch.set_facecolor('white')
-        ax.set_facecolor('white')
         
         # 엔티티 그리기
         entity_positions = {}
@@ -45,26 +68,26 @@ class VisualQuestionGenerator:
             y = 6 - (i // 3) * 3
             entity_positions[entity['name']] = (x, y)
             
-            # 엔티티 박스 그리기 (더 두꺼운 테두리)
+            # 엔티티 박스 그리기
             rect = FancyBboxPatch(
                 (x-0.8, y-0.8), 1.6, 1.6,
                 boxstyle="round,pad=0.1",
                 facecolor=colors[i % len(colors)],
                 edgecolor='black',
-                linewidth=3  # 테두리를 더 두껍게
+                linewidth=3
             )
             ax.add_patch(rect)
             
-            # 엔티티 이름 (더 큰 폰트)
+            # 엔티티 이름
             ax.text(x, y+0.3, entity['name'], ha='center', va='center', 
-                   fontsize=16, fontweight='bold')  # 폰트 크기 증가
+                   fontsize=16, fontweight='bold')
             
-            # 속성 표시 (더 큰 폰트)
+            # 속성 표시
             for j, attr in enumerate(entity.get('attributes', [])[:3]):
                 ax.text(x, y-0.1-j*0.2, f"• {attr}", ha='center', va='center', 
-                       fontsize=12)  # 폰트 크기 증가
+                       fontsize=12)
         
-        # 관계 그리기 (더 두꺼운 선)
+        # 관계 그리기
         for rel in relationships:
             if rel['from'] in entity_positions and rel['to'] in entity_positions:
                 from_pos = entity_positions[rel['from']]
@@ -72,48 +95,35 @@ class VisualQuestionGenerator:
                 
                 # 관계선 그리기
                 ax.annotate('', xy=to_pos, xytext=from_pos,
-                           arrowprops=dict(arrowstyle='->', lw=4, color='red'))  # 선 두께 증가
+                           arrowprops=dict(arrowstyle='->', lw=4, color='red'))
                 
-                # 관계 이름 (더 큰 폰트)
+                # 관계 이름
                 mid_x = (from_pos[0] + to_pos[0]) / 2
                 mid_y = (from_pos[1] + to_pos[1]) / 2
                 ax.text(mid_x, mid_y+0.2, rel['type'], ha='center', va='center',
-                       fontsize=14, fontweight='bold',  # 폰트 크기 증가
+                       fontsize=14, fontweight='bold',
                        bbox=dict(boxstyle="round,pad=0.3", 
                        facecolor='white', edgecolor='red', linewidth=3))
         
-        plt.title('Entity Relationship Diagram', fontsize=20, fontweight='bold', pad=20)  # 제목 폰트 크기 증가
-        
-        # 고해상도로 저장
-        buffer = BytesIO()
-        plt.savefig(buffer, format='png', bbox_inches='tight', dpi=300,  # DPI 증가
-                    facecolor='white', edgecolor='none')
-        buffer.seek(0)
-        image_base64 = base64.b64encode(buffer.getvalue()).decode()
-        plt.close()
-        
-        return image_base64
+        plt.title('Entity Relationship Diagram', fontsize=20, fontweight='bold', pad=20)
+        return self._save_figure(fig)
     
     def generate_table(self, data: Dict) -> str:
         """데이터 테이블 생성 - 고해상도"""
         df = pd.DataFrame(data['rows'], columns=data['columns'])
         
-        # 더 큰 figsize
-        fig, ax = plt.subplots(figsize=(14, 8))  # 기존 (10, 6)에서 확대
+        fig, ax = self._setup_figure(14, 8)
         ax.axis('tight')
         ax.axis('off')
-        
-        # 배경을 흰색으로 설정
-        fig.patch.set_facecolor('white')
         
         # 테이블 생성
         table = ax.table(cellText=df.values, colLabels=df.columns,
                         cellLoc='center', loc='center')
         
-        # 테이블 스타일링 (더 큰 폰트)
+        # 테이블 스타일링
         table.auto_set_font_size(False)
-        table.set_fontsize(12)  # 폰트 크기 증가
-        table.scale(1.5, 2.0)   # 테이블 크기 증가
+        table.set_fontsize(12)
+        table.scale(1.5, 2.0)
         
         # 헤더 스타일
         for i in range(len(df.columns)):
@@ -128,27 +138,15 @@ class VisualQuestionGenerator:
                 else:
                     table[(i, j)].set_facecolor('white')
         
-        plt.title(data.get('title', '데이터 테이블'), fontsize=18, fontweight='bold', pad=20)  # 제목 폰트 크기 증가
-        
-        buffer = BytesIO()
-        plt.savefig(buffer, format='png', bbox_inches='tight', dpi=300,  # DPI 증가
-                    facecolor='white', edgecolor='none')
-        buffer.seek(0)
-        image_base64 = base64.b64encode(buffer.getvalue()).decode()
-        plt.close()
-        
-        return image_base64
+        plt.title(data.get('title', '데이터 테이블'), fontsize=18, fontweight='bold', pad=20)
+        return self._save_figure(fig)
     
     def generate_uml_class(self, classes: List[Dict]) -> str:
         """UML 클래스 다이어그램 생성 - 고해상도"""
-        fig, ax = plt.subplots(1, 1, figsize=(16, 12))  # 기존 (12, 8)에서 확대
+        fig, ax = self._setup_figure(16, 12)
         ax.set_xlim(0, 12)
         ax.set_ylim(0, 8)
         ax.axis('off')
-        
-        # 배경을 흰색으로 설정
-        fig.patch.set_facecolor('white')
-        ax.set_facecolor('white')
         
         class_positions = {}
         
@@ -161,165 +159,127 @@ class VisualQuestionGenerator:
             total_items = 1 + len(cls.get('attributes', [])) + len(cls.get('methods', []))
             box_height = max(1.5, total_items * 0.3)
             
-            # 클래스 박스 (더 두꺼운 테두리)
+            # 클래스 박스
             rect = Rectangle((x-1.5, y-box_height/2), 3, box_height,
-                           facecolor='lightblue', edgecolor='black', linewidth=3)  # 테두리 두께 증가
+                           facecolor='lightblue', edgecolor='black', linewidth=3)
             ax.add_patch(rect)
             
-            # 클래스 이름 (더 큰 폰트)
+            # 클래스 이름
             current_y = y + box_height/2 - 0.3
             ax.text(x, current_y, cls['name'], ha='center', va='center',
-                   fontsize=16, fontweight='bold')  # 폰트 크기 증가
+                   fontsize=16, fontweight='bold')
             
-            # 구분선 (더 두껍게)
+            # 구분선
             current_y -= 0.4
-            ax.plot([x-1.4, x+1.4], [current_y, current_y], 'k-', linewidth=2)  # 선 두께 증가
+            ax.plot([x-1.4, x+1.4], [current_y, current_y], 'k-', linewidth=2)
             
-            # 속성들 (더 큰 폰트)
+            # 속성들
             current_y -= 0.2
             for attr in cls.get('attributes', []):
-                ax.text(x-1.3, current_y, f"- {attr}", ha='left', va='center', fontsize=11)  # 폰트 크기 증가
+                ax.text(x-1.3, current_y, f"- {attr}", ha='left', va='center', fontsize=11)
                 current_y -= 0.3
             
             # 구분선
             if cls.get('methods'):
-                ax.plot([x-1.4, x+1.4], [current_y+0.1, current_y+0.1], 'k-', linewidth=2)  # 선 두께 증가
+                ax.plot([x-1.4, x+1.4], [current_y+0.1, current_y+0.1], 'k-', linewidth=2)
                 current_y -= 0.1
             
-            # 메소드들 (더 큰 폰트)
+            # 메소드들
             for method in cls.get('methods', []):
-                ax.text(x-1.3, current_y, f"+ {method}", ha='left', va='center', fontsize=11)  # 폰트 크기 증가
+                ax.text(x-1.3, current_y, f"+ {method}", ha='left', va='center', fontsize=11)
                 current_y -= 0.3
         
-        plt.title('UML Class Diagram', fontsize=20, fontweight='bold', pad=20)  # 제목 폰트 크기 증가
-        
-        buffer = BytesIO()
-        plt.savefig(buffer, format='png', bbox_inches='tight', dpi=300,  # DPI 증가
-                    facecolor='white', edgecolor='none')
-        buffer.seek(0)
-        image_base64 = base64.b64encode(buffer.getvalue()).decode()
-        plt.close()
-        
-        return image_base64
+        plt.title('UML Class Diagram', fontsize=20, fontweight='bold', pad=20)
+        return self._save_figure(fig)
     
     def generate_flowchart(self, steps: List[Dict]) -> str:
         """플로우차트 생성 - 고해상도"""
-        fig, ax = plt.subplots(1, 1, figsize=(14, 16))  # 기존 (10, 12)에서 확대
+        fig, ax = self._setup_figure(14, 16)
         ax.set_xlim(0, 10)
         ax.set_ylim(0, len(steps) + 2)
         ax.axis('off')
-        
-        # 배경을 흰색으로 설정
-        fig.patch.set_facecolor('white')
-        ax.set_facecolor('white')
         
         for i, step in enumerate(steps):
             y = len(steps) + 1 - i
             x = 5
             
-            # 단계 타입에 따른 도형 선택 (더 두꺼운 테두리)
+            # 단계 타입에 따른 도형 선택
             if step['type'] == 'start' or step['type'] == 'end':
                 # 타원
-                ellipse = patches.Ellipse((x, y), 2.5, 0.8, facecolor='lightgreen',  # 크기 증가
-                                        edgecolor='black', linewidth=3)  # 테두리 두께 증가
+                ellipse = patches.Ellipse((x, y), 2.5, 0.8, facecolor='lightgreen',
+                                        edgecolor='black', linewidth=3)
                 ax.add_patch(ellipse)
             elif step['type'] == 'decision':
-                # 다이아몬드 (더 크게)
-                diamond = patches.Polygon([(x, y+0.5), (x+1.2, y), (x, y-0.5), (x-1.2, y)],  # 크기 증가
+                # 다이아몬드
+                diamond = patches.Polygon([(x, y+0.5), (x+1.2, y), (x, y-0.5), (x-1.2, y)],
                                         closed=True, facecolor='yellow', 
-                                        edgecolor='black', linewidth=3)  # 테두리 두께 증가
+                                        edgecolor='black', linewidth=3)
                 ax.add_patch(diamond)
             else:
-                # 직사각형 (더 크게)
-                rect = Rectangle((x-1.2, y-0.4), 2.4, 0.8, facecolor='lightblue',  # 크기 증가
-                               edgecolor='black', linewidth=3)  # 테두리 두께 증가
+                # 직사각형
+                rect = Rectangle((x-1.2, y-0.4), 2.4, 0.8, facecolor='lightblue',
+                               edgecolor='black', linewidth=3)
                 ax.add_patch(rect)
             
-            # 텍스트 (더 큰 폰트)
-            ax.text(x, y, step['text'], ha='center', va='center', fontsize=12, fontweight='bold')  # 폰트 크기 증가
+            # 텍스트
+            ax.text(x, y, step['text'], ha='center', va='center', fontsize=12, fontweight='bold')
             
-            # 화살표 (마지막이 아닌 경우, 더 두껍게)
+            # 화살표 (마지막이 아닌 경우)
             if i < len(steps) - 1:
                 ax.annotate('', xy=(x, y-0.6), xytext=(x, y-0.4),
-                           arrowprops=dict(arrowstyle='->', lw=3, color='black'))  # 화살표 두께 증가
+                           arrowprops=dict(arrowstyle='->', lw=3, color='black'))
         
-        plt.title('Process Flowchart', fontsize=20, fontweight='bold', pad=20)  # 제목 폰트 크기 증가
-        
-        buffer = BytesIO()
-        plt.savefig(buffer, format='png', bbox_inches='tight', dpi=300,  # DPI 증가
-                    facecolor='white', edgecolor='none')
-        buffer.seek(0)
-        image_base64 = base64.b64encode(buffer.getvalue()).decode()
-        plt.close()
-        
-        return image_base64
+        plt.title('Process Flowchart', fontsize=20, fontweight='bold', pad=20)
+        return self._save_figure(fig)
     
     def generate_ui_mockup(self, components: List[Dict]) -> str:
         """UI 목업 생성 - 고해상도"""
-        fig, ax = plt.subplots(1, 1, figsize=(14, 10))  # 기존 (10, 8)에서 확대
+        fig, ax = self._setup_figure(14, 10)
         ax.set_xlim(0, 10)
         ax.set_ylim(0, 8)
         ax.axis('off')
         
-        # 배경을 흰색으로 설정
-        fig.patch.set_facecolor('white')
-        ax.set_facecolor('white')
-        
-        # 브라우저 프레임 (더 두꺼운 테두리)
+        # 브라우저 프레임
         browser_frame = Rectangle((1, 1), 8, 6, facecolor='white', 
-                                edgecolor='gray', linewidth=3)  # 테두리 두께 증가
+                                edgecolor='gray', linewidth=3)
         ax.add_patch(browser_frame)
         
         # 브라우저 상단바
         top_bar = Rectangle((1, 6.5), 8, 0.5, facecolor='lightgray', 
-                          edgecolor='gray', linewidth=2)  # 테두리 두께 증가
+                          edgecolor='gray', linewidth=2)
         ax.add_patch(top_bar)
         
         # URL 바
         url_bar = Rectangle((2, 6.6), 6, 0.3, facecolor='white', 
-                          edgecolor='black', linewidth=2)  # 테두리 두께 증가
+                          edgecolor='black', linewidth=2)
         ax.add_patch(url_bar)
-        ax.text(2.2, 6.75, 'https://example.com', ha='left', va='center', fontsize=10)  # 폰트 크기 증가
+        ax.text(2.2, 6.75, 'https://example.com', ha='left', va='center', fontsize=10)
         
-        # UI 컴포넌트들 (더 두꺼운 테두리와 큰 폰트)
+        # UI 컴포넌트들
         for comp in components:
             x, y, w, h = comp['x'], comp['y'], comp['width'], comp['height']
             
             if comp['type'] == 'button':
                 button = Rectangle((x, y), w, h, facecolor='lightblue', 
-                                 edgecolor='blue', linewidth=2)  # 테두리 두께 증가
+                                 edgecolor='blue', linewidth=2)
                 ax.add_patch(button)
                 ax.text(x + w/2, y + h/2, comp['text'], ha='center', va='center', 
-                       fontsize=11, fontweight='bold')  # 폰트 크기 증가
+                       fontsize=11, fontweight='bold')
             
             elif comp['type'] == 'input':
                 input_box = Rectangle((x, y), w, h, facecolor='white', 
-                                    edgecolor='gray', linewidth=2)  # 테두리 두께 증가
+                                    edgecolor='gray', linewidth=2)
                 ax.add_patch(input_box)
                 ax.text(x + 0.1, y + h/2, comp.get('placeholder', ''), 
-                       ha='left', va='center', fontsize=10, color='gray')  # 폰트 크기 증가
+                       ha='left', va='center', fontsize=10, color='gray')
             
             elif comp['type'] == 'label':
                 ax.text(x, y + h/2, comp['text'], ha='left', va='center', 
-                       fontsize=12, fontweight='bold')  # 폰트 크기 증가
-            
-            elif comp['type'] == 'table':
-                table_rect = Rectangle((x, y), w, h, facecolor='lightyellow', 
-                                     edgecolor='black', linewidth=2)  # 테두리 두께 증가
-                ax.add_patch(table_rect)
-                ax.text(x + w/2, y + h/2, '데이터 테이블', ha='center', va='center', 
-                       fontsize=11)  # 폰트 크기 증가
+                       fontsize=12, fontweight='bold')
         
-        plt.title('UI Mockup', fontsize=20, fontweight='bold', pad=20)  # 제목 폰트 크기 증가
-        
-        buffer = BytesIO()
-        plt.savefig(buffer, format='png', bbox_inches='tight', dpi=300,  # DPI 증가
-                    facecolor='white', edgecolor='none')
-        buffer.seek(0)
-        image_base64 = base64.b64encode(buffer.getvalue()).decode()
-        plt.close()
-        
-        return image_base64
+        plt.title('UI Mockup', fontsize=20, fontweight='bold', pad=20)
+        return self._save_figure(fig)
+
 
 class EnhancedBAQuestionGenerator:
     """시각적 요소를 포함한 BA 문제 생성기"""
