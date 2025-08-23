@@ -1,4 +1,4 @@
-# pdf_generator.py
+# src/output/pdf_generator.py
 """
 PDF 문서 생성 모듈
 시각적 요소를 포함한 PDF 문제집 생성
@@ -19,7 +19,7 @@ from reportlab.platypus.flowables import Image as ReportLabImage
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 from PIL import Image as PILImage
 
-from utils import setup_korean_font, safe_text_escape, generate_statistics
+from utils.utils import setup_korean_font, safe_text_escape, generate_statistics, cleanup_temp_files
 import streamlit as st
 
 class PDFGenerator:
@@ -28,7 +28,7 @@ class PDFGenerator:
     def __init__(self):
         self.korean_font_available = setup_korean_font()
         self.font_name = 'KoreanFont' if self.korean_font_available else 'Helvetica'
-        self.temp_dir = "temp_images"
+        self.temp_dir = "temp/images"
         
         if not self.korean_font_available:
             st.warning("⚠️ 한글 폰트를 찾을 수 없어 기본 폰트를 사용합니다.")
@@ -230,6 +230,124 @@ class PDFGenerator:
                 print(f"문제 {i} 처리 중 오류: {question_error}")
                 story.append(Paragraph(f"문제 {i}: 처리 오류 발생", styles['question']))
     
+    def _add_integrated_questions(self, story: list, styles: dict, questions: List[Dict[str, Any]]):
+        """통합형: 문제와 정답/해설을 함께 표시"""
+        story.append(Paragraph("문제 및 정답", styles['title']))
+        story.append(Spacer(1, 0.2*inch))
+        
+        for i, question in enumerate(questions, 1):
+            try:
+                # 문제 번호와 제목
+                title = question.get('title', f'문제 {i}')
+                safe_title = safe_text_escape(title)
+                story.append(Paragraph(f"문제 {i}. {safe_title}", styles['question_title']))
+                
+                # 문제 정보
+                info_text = f"유형: {safe_text_escape(question.get('question_type'))} | "
+                info_text += f"난이도: {safe_text_escape(question.get('difficulty'))} | "
+                info_text += f"배점: {safe_text_escape(question.get('points'))}점"
+                if question.get('visual_type'):
+                    info_text += f" | 시각요소: {question['visual_type'].upper()}"
+                story.append(Paragraph(info_text, styles['answer']))
+                
+                # 시나리오
+                if question.get('scenario'):
+                    scenario_text = safe_text_escape(question['scenario'])
+                    story.append(Paragraph(f"[시나리오] {scenario_text}", styles['question']))
+                    story.append(Spacer(1, 0.05*inch))
+                
+                # 시각적 요소가 있는 경우 이미지 처리
+                if question.get('visual_image'):
+                    img = self._process_visual_image(question, i)
+                    if img:
+                        story.append(img)
+                        story.append(Spacer(1, 0.2*inch))
+                    else:
+                        story.append(Paragraph(f"[시각 자료: {question.get('visual_type', 'Image').upper()} - 표시 오류]", styles['question']))
+                        story.append(Spacer(1, 0.1*inch))
+                
+                # 문제 내용
+                question_text = safe_text_escape(question.get('question'))
+                story.append(Paragraph(f"문제: {question_text}", styles['question']))
+                story.append(Spacer(1, 0.1*inch))
+                
+                # 선다형 선택지
+                if question.get('question_type') == '선다형' and question.get('choices'):
+                    for choice in question['choices']:
+                        safe_choice = safe_text_escape(choice)
+                        story.append(Paragraph(safe_choice, styles['answer']))
+                
+                story.append(Spacer(1, 0.15*inch))
+                
+                # 정답 및 해설 (통합형에서는 바로 표시)
+                self._add_single_answer(story, styles, question, i)
+                
+                story.append(Spacer(1, 0.3*inch))
+                
+                # 페이지 구분 (시각적 요소가 있으면 1문제당 1페이지, 없으면 2문제당 1페이지)
+                questions_per_page = 1 if question.get('visual_image') else 2
+                if i % questions_per_page == 0 and i < len(questions):
+                    story.append(PageBreak())
+                    
+            except Exception as question_error:
+                print(f"문제 {i} 처리 중 오류: {question_error}")
+                story.append(Paragraph(f"문제 {i}: 처리 오류 발생", styles['question']))
+    
+    def _add_single_answer(self, story: list, styles: dict, question: Dict[str, Any], question_num: int):
+        """개별 문제의 정답 및 해설 추가"""
+        try:
+            # 정답 표시
+            story.append(Paragraph("정답 및 해설", styles['question_title']))
+            
+            # 정답
+            if question.get('question_type') == '선다형':
+                story.append(Paragraph(f"정답: {safe_text_escape(question.get('correct_answer'))}", styles['question']))
+            elif question.get('question_type') == '단답형':
+                answer_text = f"정답: {safe_text_escape(question.get('correct_answer'))}"
+                if question.get('alternative_answers'):
+                    alt_answers = question['alternative_answers']
+                    if isinstance(alt_answers, list):
+                        alt_strings = []
+                        for item in alt_answers:
+                            if isinstance(item, str):
+                                alt_strings.append(item)
+                            elif isinstance(item, dict):
+                                alt_strings.append(str(item.get('answer', item)))
+                            else:
+                                alt_strings.append(str(item))
+                        
+                        if alt_strings:
+                            answer_text += f" (가능한 답: {', '.join(alt_strings)})"
+                story.append(Paragraph(answer_text, styles['question']))
+            elif question.get('question_type') == '서술형':
+                model_answer = safe_text_escape(question.get('model_answer'))
+                story.append(Paragraph(f"모범답안: {model_answer}", styles['question']))
+                
+                # 채점기준 처리
+                if question.get('grading_criteria'):
+                    try:
+                        story.append(Paragraph("채점기준:", styles['question']))
+                        criteria_list = question['grading_criteria']
+                        
+                        if isinstance(criteria_list, list):
+                            for j, criteria in enumerate(criteria_list, 1):
+                                safe_criteria = safe_text_escape(criteria)
+                                story.append(Paragraph(f"{j}. {safe_criteria}", styles['answer']))
+                        else:
+                            safe_criteria = safe_text_escape(criteria_list)
+                            story.append(Paragraph(f"1. {safe_criteria}", styles['answer']))
+                    except Exception:
+                        story.append(Paragraph("채점기준: 처리 오류", styles['answer']))
+            
+            # 해설
+            if question.get('explanation'):
+                explanation_text = safe_text_escape(question['explanation'])
+                story.append(Paragraph(f"해설: {explanation_text}", styles['question']))
+            
+        except Exception as answer_error:
+            print(f"문제 {question_num} 정답 처리 중 오류: {answer_error}")
+            story.append(Paragraph(f"정답 {question_num}: 처리 오류 발생", styles['question']))
+    
     def _add_answer_section(self, story: list, styles: dict, questions: List[Dict[str, Any]]):
         """정답 및 해설 섹션 추가"""
         story.append(PageBreak())
@@ -295,7 +413,7 @@ class PDFGenerator:
                 print(f"문제 {i} 처리 중 오류: {question_error}")
                 story.append(Paragraph(f"문제 {i}: 처리 오류 발생", styles['question']))
     
-    def create_pdf_document_with_images(self, questions: List[Dict[str, Any]]) -> bytes:
+    def create_pdf_document_with_images(self, questions: List[Dict[str, Any]], format_type: str = "separated") -> bytes:
         """시각적 요소를 포함한 PDF 생성"""
         buffer = BytesIO()
         self._create_temp_dir()
@@ -318,8 +436,14 @@ class PDFGenerator:
             # 페이지 섹션들 추가
             self._add_title_page(story, styles, len(questions))
             self._add_statistics_page(story, styles, questions)
-            self._add_question_section(story, styles, questions)
-            self._add_answer_section(story, styles, questions)
+            
+            if format_type == "integrated":
+                # 통합형: 문제와 정답/해설을 함께 표시
+                self._add_integrated_questions(story, styles, questions)
+            else:
+                # 분리형: 문제 먼저, 정답/해설 나중에
+                self._add_question_section(story, styles, questions)
+                self._add_answer_section(story, styles, questions)
             
             # PDF 생성
             doc.build(story)
@@ -333,5 +457,4 @@ class PDFGenerator:
         
         finally:
             # 임시 이미지 파일들 정리
-            from utils import cleanup_temp_files
             cleanup_temp_files(self.temp_dir)

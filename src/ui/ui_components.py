@@ -1,4 +1,4 @@
-# ui_components.py
+# src/ui/ui_components.py
 """
 UI 컴포넌트 모듈
 Streamlit UI 관련 함수들
@@ -8,29 +8,35 @@ import streamlit as st
 import plotly.express as px
 from typing import List, Dict, Any
 
-from config import Config
-from utils import check_azure_config, generate_statistics
+from config.config import Config
+from utils.utils import check_azure_config, generate_statistics
 
 class UIComponents:
     """UI 컴포넌트 클래스"""
     
     @staticmethod
     def display_azure_status():
-        """Azure OpenAI 설정 상태 표시"""
+        """Azure OpenAI 설정 상태 표시 - 숨김 처리"""
+        # Azure 상태 정보는 백그라운드에서만 확인하고 화면에는 표시하지 않음
         azure_status = check_azure_config()
         
-        if not azure_status['env_file_exists']:
-            st.warning("⚠️ .env 파일이 없습니다. Azure OpenAI 설정을 확인해주세요.")
-            UIComponents.display_config_help()
-        else:
-            if azure_status['azure_configured']:
-                st.success("✅ Azure OpenAI 설정 완료")
-                st.info(f"🌐 엔드포인트: {azure_status['endpoint']}")
-                st.info(f"🚀 배포 모델: {azure_status['deployment_name']}")
+        # 디버그 모드일 때만 표시 (DEBUG=True인 경우)
+        if Config.DEBUG_MODE:
+            if not azure_status['env_file_exists']:
+                st.warning("⚠️ .env 파일이 없습니다. Azure OpenAI 설정을 확인해주세요.")
+                UIComponents.display_config_help()
             else:
-                st.error("❌ Azure OpenAI 설정이 완전하지 않습니다.")
-                missing_vars = [k for k, v in azure_status['configured_vars'].items() if not v]
-                st.error(f"누락된 환경변수: {', '.join(missing_vars)}")
+                if azure_status['azure_configured']:
+                    st.success("✅ Azure OpenAI 설정 완료")
+                    st.info(f"🌐 엔드포인트: {azure_status['endpoint']}")
+                    st.info(f"🚀 배포 모델: {azure_status['deployment_name']}")
+                else:
+                    st.error("❌ Azure OpenAI 설정이 완전하지 않습니다.")
+                    missing_vars = [k for k, v in azure_status['configured_vars'].items() if not v]
+                    st.error(f"누락된 환경변수: {', '.join(missing_vars)}")
+        
+        # 일반 모드에서는 Azure 설정 상태를 화면에 표시하지 않음
+        pass
     
     @staticmethod
     def display_config_help():
@@ -67,7 +73,7 @@ class UIComponents:
             total_questions = st.slider(
                 "총 문제 수",
                 min_value=10,
-                max_value=200,
+                max_value=100,
                 value=Config.DEFAULT_QUESTION_COUNT,
                 step=10
             )
@@ -91,6 +97,19 @@ class UIComponents:
             visual_ratio = st.slider("시각적 문제 비율 (%)", 0, 100, Config.DEFAULT_VISUAL_RATIO)
             st.caption("데이터 모델링, 프로세스 설계 등에서 ERD, UML, 플로우차트 등을 포함한 문제 생성")
             
+            # PDF 출력 형식 설정
+            st.subheader("📄 PDF 출력 형식")
+            pdf_format = st.radio(
+                "출력 형식 선택",
+                options=["separated", "integrated"],
+                format_func=lambda x: {
+                    "separated": "🔄 분리형 (문제 → 정답/해설)",
+                    "integrated": "📝 통합형 (문제+정답 연속)"
+                }[x],
+                index=0,
+                help="분리형: 모든 문제를 먼저 보고 뒤에 정답/해설이 나오는 방식\n통합형: 각 문제마다 바로 정답/해설이 나오는 방식"
+            )
+            
             # 디버그 정보 (DEBUG=True일 때만 표시)
             if Config.DEBUG_MODE:
                 st.markdown("---")
@@ -112,7 +131,8 @@ class UIComponents:
             'easy_ratio': easy_ratio,
             'medium_ratio': medium_ratio,
             'hard_ratio': hard_ratio,
-            'visual_ratio': visual_ratio
+            'visual_ratio': visual_ratio,
+            'pdf_format': pdf_format
         }
     
     @staticmethod

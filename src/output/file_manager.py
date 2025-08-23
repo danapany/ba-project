@@ -1,4 +1,4 @@
-# file_manager.py
+# src/output/file_manager.py
 """
 파일 관리 모듈
 다운로드 파일 생성, ZIP 압축, Excel 생성 등
@@ -11,8 +11,8 @@ from typing import List, Dict, Any
 from io import BytesIO
 import pandas as pd
 
-from pdf_generator import PDFGenerator
-from utils import generate_statistics
+from .pdf_generator import PDFGenerator
+from utils.utils import generate_statistics
 
 class FileManager:
     """파일 생성 및 관리 클래스"""
@@ -52,7 +52,7 @@ class FileManager:
         stats = generate_statistics(questions)
         return json.dumps(stats, ensure_ascii=False, indent=2)
     
-    def create_download_zip(self, questions: List[Dict[str, Any]]) -> bytes:
+    def create_download_zip(self, questions: List[Dict[str, Any]], pdf_format: str = "separated") -> bytes:
         """다운로드용 파일들을 ZIP으로 압축"""
         zip_buffer = BytesIO()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -63,9 +63,10 @@ class FileManager:
             zip_file.writestr(f"BA_questions_{timestamp}.json", json_content.encode('utf-8'))
             
             # PDF 파일 추가
-            pdf_data = self.pdf_generator.create_pdf_document_with_images(questions)
+            pdf_data = self.pdf_generator.create_pdf_document_with_images(questions, pdf_format)
             if pdf_data:  # PDF 생성이 성공한 경우만
-                zip_file.writestr(f"BA_questions_{timestamp}.pdf", pdf_data)
+                format_suffix = "_integrated" if pdf_format == "integrated" else "_separated"
+                zip_file.writestr(f"BA_questions{format_suffix}_{timestamp}.pdf", pdf_data)
             
             # Excel 파일 추가
             excel_data = self.create_excel_file(questions)

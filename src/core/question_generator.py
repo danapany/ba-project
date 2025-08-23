@@ -1,4 +1,4 @@
-# question_generator.py
+# src/core/question_generator.py
 """
 최적화된 문제 생성 모듈
 Azure OpenAI를 활용한 텍스트 문제 생성 + 시각적 문제 통합
@@ -13,8 +13,8 @@ import PyPDF2
 from openai import AzureOpenAI
 import streamlit as st
 
-from config import Config
-from visual_generator import VisualQuestionGenerator, EnhancedBAQuestionGenerator
+from config.config import Config
+from generators.visual_generator import VisualQuestionGenerator, EnhancedBAQuestionGenerator
 
 class BAQuestionGenerator:
     """Business Application 모델링 문제 생성기 (Azure OpenAI + 시각적 요소)"""

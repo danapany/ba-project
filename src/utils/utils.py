@@ -1,4 +1,4 @@
-# utils.py
+# src/utils/utils.py
 """
 유틸리티 함수 모듈
 공통으로 사용되는 헬퍼 함수들
@@ -102,7 +102,8 @@ def safe_text_escape(text):
 
 def check_azure_config() -> Dict[str, Any]:
     """Azure OpenAI 설정 확인"""
-    from config import Config
+    # config 임포트를 함수 내부로 이동 (circular import 방지)
+    from config.config import Config
     
     env_exists = os.path.exists('.env')
     

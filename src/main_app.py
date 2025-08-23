@@ -1,4 +1,4 @@
-# main_app.py
+# src/main_app.py
 """
 최적화된 메인 Streamlit 애플리케이션
 모듈화된 구조로 UI, 파일 생성, 통계 등을 분리
@@ -8,13 +8,13 @@ import streamlit as st
 import random
 from datetime import datetime
 
-# 로컬 모듈 import
-from config import Config
-from utils import check_azure_config
-from ui_components import UIComponents
-from file_manager import FileManager
-from question_generator import BAQuestionGenerator
-from visual_generator import EnhancedBAQuestionGenerator
+# 로컬 모듈 import (새로운 구조에 맞게 수정)
+from config.config import Config
+from utils.utils import check_azure_config
+from ui.ui_components import UIComponents
+from output.file_manager import FileManager
+from core.question_generator import BAQuestionGenerator
+from generators.visual_generator import EnhancedBAQuestionGenerator
 
 # 페이지 설정
 st.set_page_config(
@@ -164,7 +164,7 @@ def display_question_preview(questions):
         else:
             st.write("생성된 시각적 문제가 없습니다.")
 
-def display_download_section(questions):
+def display_download_section(questions, pdf_format):
     """다운로드 섹션 표시"""
     st.markdown("---")
     st.header("💾 결과 다운로드")
@@ -175,7 +175,7 @@ def display_download_section(questions):
     
     with col1:
         # ZIP 파일 다운로드 (전체)
-        zip_data = file_manager.create_download_zip(questions)
+        zip_data = file_manager.create_download_zip(questions, pdf_format)
         st.download_button(
             label="📦 전체 파일 다운로드 (ZIP)",
             data=zip_data,
@@ -186,14 +186,15 @@ def display_download_section(questions):
     
     with col2:
         # PDF 파일 다운로드 (시각적 요소 포함)
-        pdf_data = file_manager.pdf_generator.create_pdf_document_with_images(questions)
+        pdf_data = file_manager.pdf_generator.create_pdf_document_with_images(questions, pdf_format)
         if pdf_data:
+            format_text = "통합형" if pdf_format == "integrated" else "분리형"
             st.download_button(
-                label="📄 PDF 문제집 다운로드",
+                label=f"📄 PDF 문제집 ({format_text})",
                 data=pdf_data,
-                file_name=file_manager.get_timestamp_filename("BA_questions", "pdf"),
+                file_name=file_manager.get_timestamp_filename(f"BA_questions_{pdf_format}", "pdf"),
                 mime="application/pdf",
-                help="시각적 요소가 포함된 출력용 PDF 문제집"
+                help=f"시각적 요소가 포함된 {format_text} PDF 문제집"
             )
         else:
             st.error("PDF 생성에 실패했습니다.")
@@ -214,7 +215,7 @@ def main():
     
     # 제목과 설명
     st.title("📚 Business Application 모델링 문제 생성기")
-    st.markdown("### 📷 Azure OpenAI + 🎨 시각적 요소 지원")
+    st.markdown("### 🤖 AI 기반 + 🎨 시각적 요소 지원")
     st.markdown("---")
     
     # 메뉴 탭
@@ -224,10 +225,10 @@ def main():
         create_visual_question_demo()
     
     with tab1:
-        # Azure OpenAI 설정 상태 표시
-        UIComponents.display_azure_status()
+        # Azure OpenAI 상태는 표시하지 않음 (백그라운드에서만 확인)
+        # UIComponents.display_azure_status()  # 이 줄을 주석 처리
         
-        st.write("**Source PDF를 업로드하고 Azure OpenAI를 활용해 텍스트 + 시각적 요소가 포함된 고품질 문제를 생성해보세요!**")
+        st.write("**Source PDF를 업로드하고 AI를 활용해 텍스트 + 시각적 요소가 포함된 고품질 문제를 생성해보세요!**")
         
         # 사이드바 설정
         settings = UIComponents.display_sidebar_settings()
@@ -262,14 +263,14 @@ def main():
         
         st.markdown("---")
         
-        # Azure OpenAI 설정 유효성 검사
+        # Azure OpenAI 설정 유효성 검사 (백그라운드에서만)
         azure_status = check_azure_config()
         api_configured = azure_status['azure_configured']
         
         # 문제 생성 버튼
         if st.button("🚀 문제 생성 시작", type="primary", disabled=not uploaded_file or not api_configured):
             if not api_configured:
-                st.error("❌ Azure OpenAI가 설정되지 않았습니다. .env 파일을 확인해주세요.")
+                st.error("❌ AI 서비스가 설정되지 않았습니다. 관리자에게 문의해주세요.")
             elif not uploaded_file:
                 st.error("❌ PDF 파일을 업로드해주세요.")
             else:
@@ -279,9 +280,9 @@ def main():
                 # 시각적 문제 비율 설정
                 generator.visual_question_ratio = settings['visual_ratio'] / 100
                 
-                # Azure OpenAI 연결 확인
+                # Azure OpenAI 연결 확인 (백그라운드에서만)
                 if not generator.api_configured:
-                    st.error("❌ Azure OpenAI 연결에 실패했습니다. 설정을 확인해주세요.")
+                    st.error("❌ AI 서비스 연결에 실패했습니다. 관리자에게 문의해주세요.")
                     return
                 
                 # 문제 유형별 분배 계산
@@ -307,7 +308,7 @@ def main():
             UIComponents.display_statistics_charts(questions)
             
             # 다운로드 섹션
-            display_download_section(questions)
+            display_download_section(questions, settings['pdf_format'])
             
             # 문제 미리보기
             display_question_preview(questions)
@@ -337,4 +338,4 @@ if __name__ == "__main__":
         """)
         st.stop()
     
-    main()  
+    main()
